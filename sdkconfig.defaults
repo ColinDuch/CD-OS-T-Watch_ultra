@@ -1,0 +1,8 @@
+# Réglages de la T-Watch Ultra (repris de la définition officielle Arduino, boards.txt "twatch_ultra")
+# Flash externe de 16 Mo, lue en DIO
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+# PSRAM externe de 8 Mo en QSPI
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_SPEED_80M=y

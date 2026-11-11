@@ -1,2 +1,5 @@
-.pio/
-.vscode/
+/build/
+/managed_components/
+/.pio/
+/.vscode/
+sdkconfig.old
