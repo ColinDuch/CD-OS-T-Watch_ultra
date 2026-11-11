@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "esp_psram.h"     // fonctions liées à la PSRAM
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par "capacités"
+#include "bus_i2c.h"
 
 static const char *TAG = "main";
 
@@ -18,6 +19,9 @@ void app_main(void)
 
     // mémoire encore libre en RAM interne 
     ESP_LOGI(TAG, "RAM interne libre : %zu octets", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+
+    ESP_ERROR_CHECK(bus_i2c_init());
+    bus_i2c_scanner();
 
     int battement = 0;
     while (1) {
