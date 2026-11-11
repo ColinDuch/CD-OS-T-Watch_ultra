@@ -16,8 +16,8 @@ void app_main(void)
     // mémoire encore libre en PSRAM
     ESP_LOGI(TAG, "PSRAM libre : %zu octets", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
-    // À TOI : afficher la RAM interne libre
-    // (même fonction, autre capacité : Ctrl+clic sur MALLOC_CAP_SPIRAM pour voir la liste)
+    // mémoire encore libre en RAM interne 
+    ESP_LOGI(TAG, "RAM interne libre : %zu octets", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
     int battement = 0;
     while (1) {
