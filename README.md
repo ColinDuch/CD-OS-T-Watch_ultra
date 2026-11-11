@@ -48,9 +48,9 @@ CD-OS-T-Watch_ultra/
 
 ## Feuille de route
 
-- [ ] **Étape 1 : projet ESP-IDF.** Flash 16 Mo, PSRAM 8 Mo détectée, journal.
-- [ ] **Étape 2 : bus I2C.** Initialisation et scan des adresses (6 puces attendues).
-- [ ] **Étape 3 : pilote XL9555.** Expandeur de GPIO (alimentation de l’écran, reset du tactile).
+- [x] **Étape 1 : projet ESP-IDF.** Flash 16 Mo, PSRAM 8 Mo détectée, journal.
+- [x] **Étape 2 : bus I2C.** Initialisation et scan des adresses (6 puces attendues).
+- [x] **Étape 3 : pilote XL9555.** Expandeur de GPIO (alimentation de l’écran, reset du tactile).
 - [ ] **Étape 4 : pilote AXP2101 (minimal).** Allumer ALDO2 (écran), lire la batterie.
 - [ ] **Étape 5 : pilote d’écran CO5300.** QSPI, séquence d’initialisation, premiers pixels.
 - [ ] **Étape 6 : LVGL.** Reprise de l’interface de CD-OS, tampons en PSRAM.
@@ -82,7 +82,7 @@ Source : `docs/hardware/lilygo-t-watch-ultra.md` du dépôt LilyGoLib, et la dé
 
 **Adresses I2C :** tactile CST9217 `0x1A`, expandeur XL9555 `0x20`, capteur BHI260AP `0x28`, AXP2101 `0x34`, RTC PCF85063A `0x51`, vibreur DRV2605 `0x5A`.
 
-**Broches de l’expandeur XL9555 :** 6 = activation du vibreur, 7 = alimentation de l’écran, 10 = reset du tactile, 12 = détection de la carte SD.
+**Broches de l’expandeur XL9555 :** 6 = activation du vibreur, 7 = alimentation de l’écran, 8 = reset du tactile, 10 = détection de la carte SD.
 
 **Sorties de l’AXP2101 :**
 
