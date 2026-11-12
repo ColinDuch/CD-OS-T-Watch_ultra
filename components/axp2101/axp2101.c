@@ -10,7 +10,10 @@
 #define REG_VBAT_HAUT 0x34
 #define REG_VBAT_BAS 0x35
 #define REG_SORTIES_LDO 0x90
-#define REG_TENSION_ALDO1 0x92   // ALDO2 = 0x93, ALDO3 = 0x94, ALDO4 = 0x95
+#define REG_TENSION_LDO 0x92    // ALDO1, puis les autres sorties dans l'ordre de l'énumération
+#define TENSION_MIN_MV 500
+#define TENSION_MAX_MV 3500
+#define TENSION_PAS_MV 100
 #define DELAI_MS 100
 
 static const char *TAG = "axp2101";
@@ -58,15 +61,67 @@ esp_err_t axp2101_etat_sorties(uint8_t *masque)
     return lire_registre(REG_SORTIES_LDO, masque);
 }
 
-esp_err_t axp2101_tension_aldo(int numero, int *mv)
+static bool tension_reglable(axp2101_sortie_t sortie) 
 {
-    if (numero < 1 || numero > 4) {
-        return ESP_ERR_INVALID_ARG;
+    return sortie >= AXP2101_ALDO1 && sortie <= AXP2101_BLDO2;
+}
+
+esp_err_t axp2101_tension(axp2101_sortie_t sortie, int *mv)
+{
+    if (!tension_reglable(sortie)) {
+        return ESP_ERR_NOT_SUPPORTED;
     }
     uint8_t valeur;
-    ESP_RETURN_ON_ERROR(lire_registre(REG_TENSION_ALDO1 + numero - 1, &valeur), TAG, "lecture tension");
-    *mv = 500 + (valeur & 0x1F) * 100;   // 0x1F = 0b00011111 : on garde les 5 bits de poids faible
+    ESP_RETURN_ON_ERROR(lire_registre(REG_TENSION_LDO + sortie, &valeur), TAG, "lecture tension");
+    *mv = TENSION_MIN_MV + (valeur & 0x1F) * TENSION_PAS_MV;
     return ESP_OK;
+}
+
+esp_err_t axp2101_regler_tension(axp2101_sortie_t sortie, int mv) 
+{
+    if (!tension_reglable(sortie)) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    // refuser toute tension hors limites, ou qui ne tombe pas sur un pas de 100mV
+    if (mv < TENSION_MIN_MV || mv > TENSION_MAX_MV || (mv - TENSION_MIN_MV) % TENSION_PAS_MV != 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t reg = REG_TENSION_LDO + sortie;
+    uint8_t valeur;
+    ESP_RETURN_ON_ERROR(lire_registre(reg, &valeur), TAG, "lecture tension");
+
+    // garder les 3 bits du haut (0xE0), remplacer les 5 bits du bas par la nouvelle tension
+    valeur = (valeur & 0xE0) | ((mv - TENSION_MIN_MV) / TENSION_PAS_MV);
+
+    ESP_RETURN_ON_ERROR(ecrire_registre(reg, valeur), TAG, "écriture tension");
+
+    // relire le registre pour vérifier que la puce a bien prise la nouvelle tension
+    uint8_t relu;
+    ESP_RETURN_ON_ERROR(lire_registre(reg, &relu), TAG, "relcture tension");
+    if (relu != valeur) {
+        ESP_LOGE(TAG, "Tension non appliquée (registre 0x%02X) : écrire 0x%02X, relu 0x%02X", reg, valeur, relu);
+        return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_OK;
+}
+
+esp_err_t axp2101_activer_sortie(axp2101_sortie_t sortie, bool allumer)
+{
+    if (sortie < AXP2101_ALDO1 || sortie > AXP2101_DLDO1) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // un seul registre pour les 8 interrupteurs : le bit numéro "sortie"
+    uint8_t valeur;
+    ESP_RETURN_ON_ERROR(lire_registre(REG_SORTIES_LDO, &valeur), TAG, "lecture sorties");
+
+    if (allumer) {
+        valeur |= (1 << sortie);
+    } else {
+        valeur &= ~(1 << sortie);
+    }
+
+    return ecrire_registre(REG_SORTIES_LDO, valeur);
 }
 
 esp_err_t axp2101_tension_batterie(int *mv)

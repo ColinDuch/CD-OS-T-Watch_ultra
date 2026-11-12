@@ -25,40 +25,35 @@ void app_main(void)
     // expandeur XL9555
     ESP_ERROR_CHECK(xl9555_init(bus_i2c_poignee()));
 
-    // test 1 : écrire sur la broche 6, puis relire son état réel
-    ESP_ERROR_CHECK(xl9555_mode(6, true));
-    bool niveau = false;
-
-    ESP_ERROR_CHECK(xl9555_ecrire(6, false));
-    ESP_ERROR_CHECK(xl9555_lire(6, &niveau));
-    ESP_LOGI(TAG, "Broche 6 après écriture de 0 : %d", niveau);
-
-    ESP_ERROR_CHECK(xl9555_ecrire(6, true));
-    ESP_ERROR_CHECK(xl9555_lire(6, &niveau));
-    ESP_LOGI(TAG, "Broche 6 après écriture de 1 : %d", niveau);
-
+    // gestion d'alimentation AXP2101
     ESP_ERROR_CHECK(axp2101_init(bus_i2c_poignee()));
 
+    // état des sorties avant le test
     uint8_t sorties = 0;
     ESP_ERROR_CHECK(axp2101_etat_sorties(&sorties));
-    ESP_LOGI(TAG, "Sorties LDO allumées : 0x%02X", sorties);
+    ESP_LOGI(TAG, "Sorties LDO avant : 0x%02X", sorties);
 
-    for (int n = 1; n <= 4; n++) {
+    // le capteur : d'abord la tension, ensuite l'allumage
+    ESP_ERROR_CHECK(axp2101_regler_tension(AXP2101_ALDO4, 1800));
+    ESP_ERROR_CHECK(axp2101_activer_sortie(AXP2101_ALDO4, true));
+    vTaskDelay(pdMS_TO_TICKS(50));   // laisse au capteur le temps de démarrer
+
+    // état des sorties après le test
+    ESP_ERROR_CHECK(axp2101_etat_sorties(&sorties));
+    ESP_LOGI(TAG, "Sorties LDO après : 0x%02X", sorties);
+
+    // tension de chaque sortie réglable
+    for (axp2101_sortie_t s = AXP2101_ALDO1; s <= AXP2101_BLDO2; s++) {
         int mv = 0;
-        ESP_ERROR_CHECK(axp2101_tension_aldo(n, &mv));
-        ESP_LOGI(TAG, "ALDO%d : %d mV", n, mv);
+        ESP_ERROR_CHECK(axp2101_tension(s, &mv));
+        ESP_LOGI(TAG, "Sortie %d : %d mV", s, mv);
     }
+
+    // le capteur doit être revenu sur le bus
+    bus_i2c_scanner();
 
     int battement = 0;
     while (1) {
-        uint16_t etats = 0;
-        for (int broche = 0; broche < 16; broche++) {
-            bool n = false;
-            xl9555_lire(broche, &n);
-            if (n) {
-                etats |= (1 << broche);   // range l'état de chaque broche dans son bit
-            }
-        }
         int batterie = 0;
         axp2101_tension_batterie(&batterie);
         ESP_LOGI(TAG, "Battement %d | batterie : %d mV", battement++, batterie);

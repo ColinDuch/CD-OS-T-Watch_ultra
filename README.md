@@ -93,6 +93,8 @@ Chaque pilote est un composant ESP-IDF : son dossier `include/` contient la part
 - **Toujours régler la tension d’une sortie AVANT de l’allumer.**
 - **Prendre les réglages dans le fichier de la bonne carte** (`LilyGoWatchUltra.cpp`) : la T-Watch S3 utilise d’autres tensions pour les mêmes sorties.
 - **Modifier un registre :** lire, changer uniquement les bits voulus, réécrire.
+- **Dans un pilote d'alimentation, distinguer les registres d'allumage (un bit par sortie) des registres de tension (un registre par sortie).**
+- **Faire attention au valeur mise dans les registres (#define), toujours mettre un valeur ne pas les laisser vides.**
 
 ## Notes matérielles (T-Watch Ultra)
 
@@ -157,7 +159,7 @@ Identifiant `0x4A` (registre `0x03`). Tension batterie sur 13 bits en mV : 5 bit
 | ALDO2 | 1 | `0x93` | Écran | 3300 mV | 3300 mV |
 | ALDO3 | 2 | `0x94` | LoRa | 3300 mV | 3300 mV |
 | ALDO4 | 3 | `0x95` | Capteur | **1800 mV** | **3300 mV** (danger) |
-| BLDO1 | 4 | `0x96` | GPS | 3300 mV | — |
+| BLDO1 | 4 | `0x96` | GPS | 1800 mV | — |
 | BLDO2 | 5 | `0x97` | Haut-parleur | 3300 mV | — |
 | CPUSLDO | 6 | `0x98` | Inutilisée | éteinte | — |
 | DLDO1 | 7 | `0x99` | NFC | allumée, tension par défaut | — |
