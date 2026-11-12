@@ -1,1 +1,1 @@
-idf_component_register(SRCS "main.c" "bus_i2c.c" "xl9555.c" "axp2101.c" INCLUDE_DIRS ".")
+idf_component_register(SRCS "main.c" INCLUDE_DIRS ".")
