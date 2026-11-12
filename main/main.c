@@ -5,6 +5,7 @@
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par "capacités"
 #include "bus_i2c.h"
 #include "xl9555.h"
+#include "axp2101.h"
 
 static const char *TAG = "main";
 
@@ -36,6 +37,18 @@ void app_main(void)
     ESP_ERROR_CHECK(xl9555_lire(6, &niveau));
     ESP_LOGI(TAG, "Broche 6 après écriture de 1 : %d", niveau);
 
+    ESP_ERROR_CHECK(axp2101_init(bus_i2c_poignee()));
+
+    uint8_t sorties = 0;
+    ESP_ERROR_CHECK(axp2101_etat_sorties(&sorties));
+    ESP_LOGI(TAG, "Sorties LDO allumées : 0x%02X", sorties);
+
+    for (int n = 1; n <= 4; n++) {
+        int mv = 0;
+        ESP_ERROR_CHECK(axp2101_tension_aldo(n, &mv));
+        ESP_LOGI(TAG, "ALDO%d : %d mV", n, mv);
+    }
+
     int battement = 0;
     while (1) {
         uint16_t etats = 0;
@@ -46,7 +59,9 @@ void app_main(void)
                 etats |= (1 << broche);   // range l'état de chaque broche dans son bit
             }
         }
-        ESP_LOGI(TAG, "Battement %d | broches : 0x%04X", battement++, etats);
+        int batterie = 0;
+        axp2101_tension_batterie(&batterie);
+        ESP_LOGI(TAG, "Battement %d | batterie : %d mV", battement++, batterie);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
