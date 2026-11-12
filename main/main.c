@@ -29,10 +29,17 @@ void app_main(void)
     ESP_ERROR_CHECK(axp2101_etat_sorties(&sorties));
     ESP_LOGI(TAG, "Sorties LDO héritées : 0x%02X", sorties);
 
+    uint8_t dcdc = 0;
+    ESP_ERROR_CHECK(axp2101_etat_dcdc(&dcdc));
+    ESP_LOGI(TAG, "DCDC hérités : 0x%02X", dcdc & 0x1F);
+
     ESP_ERROR_CHECK(alimentation_init());
 
     ESP_ERROR_CHECK(axp2101_etat_sorties(&sorties));
     ESP_LOGI(TAG, "Sorties LDO imposées : 0x%02X", sorties);
+
+    ESP_ERROR_CHECK(axp2101_etat_dcdc(&dcdc));
+    ESP_LOGI(TAG, "DCDC imposés : 0x%02X", dcdc & 0x1F);
 
     for (axp2101_sortie_t s = AXP2101_ALDO1; s <= AXP2101_BLDO2; s++) {
         int mv = 0;

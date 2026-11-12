@@ -23,3 +23,15 @@ esp_err_t axp2101_tension(axp2101_sortie_t sortie, int *mv);
 esp_err_t axp2101_regler_tension(axp2101_sortie_t sortie, int mv);
 esp_err_t axp2101_activer_sortie(axp2101_sortie_t sortie, bool allumer);
 esp_err_t axp2101_tension_batterie(int *mv);
+
+// les convertisseurs DCDC, numérotés comme leurs bits dans le registre 0x80
+typedef enum {
+    AXP2101_DCDC1 = 0,   // ESP32-S3 : ne jamais couper !
+    AXP2101_DCDC2,       // inutilisé
+    AXP2101_DCDC3,       // inutilisé
+    AXP2101_DCDC4,       // inutilisé
+    AXP2101_DCDC5,       // inutilisé
+} axp2101_dcdc_t;
+
+esp_err_t axp2101_etat_dcdc(uint8_t *masque);
+esp_err_t axp2101_activer_dcdc(axp2101_dcdc_t dcdc, bool allumer);

@@ -10,6 +10,7 @@
 #define REG_VBAT_HAUT 0x34
 #define REG_VBAT_BAS 0x35
 #define REG_SORTIES_LDO 0x90
+#define REG_SORTIES_DCDC 0x80   // bits 0 à 4 = DCDC1 à DCDC5, bits 5 et 6 autres fonctions  
 #define REG_TENSION_LDO 0x92    // ALDO1, puis les autres sorties dans l'ordre de l'énumération
 #define TENSION_MIN_MV 500
 #define TENSION_MAX_MV 3500
@@ -122,6 +123,40 @@ esp_err_t axp2101_activer_sortie(axp2101_sortie_t sortie, bool allumer)
     }
 
     return ecrire_registre(REG_SORTIES_LDO, valeur);
+}
+
+esp_err_t axp2101_etat_dcdc(uint8_t *masque)
+{
+    return lire_registre(REG_SORTIES_DCDC, masque);
+}
+
+esp_err_t axp2101_activer_dcdc(axp2101_dcdc_t dcdc, bool allumer)
+{
+    // garde fou 1 : DCDC1 alimente l'ESP32, donc on refuse d'y toucher peu import le sens 
+    if (dcdc == AXP2101_DCDC1) {
+        ESP_LOGE(TAG, "Refus : DCDC1 alimente l'ESP32");
+        return ESP_ERR_NOT_ALLOWED;
+    }
+    if (dcdc < AXP2101_DCDC2 || dcdc > AXP2101_DCDC5) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t valeur;
+    ESP_RETURN_ON_ERROR(lire_registre(REG_SORTIES_DCDC, &valeur), TAG, "lecture DCDC");
+
+    // garde fou 2 : si le programme tourne, DCDC1 est forcément allumé.
+    // Lire un 0 voudrait dire que la lecture est faussé, donc on ne la réécrit surtout pas ça couperait l'ESP32
+    if (!(valeur & (1 << AXP2101_DCDC1))) {
+        ESP_LOGE(TAG, "Lecture incohérente du registre DCDC (0x%02X) : écriture annulée", valeur);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (allumer) {
+        valeur |= (1 << dcdc);
+    } else {
+        valeur &= ~(1 << dcdc);
+    }
+    return ecrire_registre(REG_SORTIES_DCDC, valeur);
 }
 
 esp_err_t axp2101_tension_batterie(int *mv)

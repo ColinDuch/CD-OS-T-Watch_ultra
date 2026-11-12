@@ -95,6 +95,8 @@ Chaque pilote est un composant ESP-IDF : son dossier `include/` contient la part
 - **Modifier un registre :** lire, changer uniquement les bits voulus, réécrire.
 - **Dans un pilote d'alimentation, distinguer les registres d'allumage (un bit par sortie) des registres de tension (un registre par sortie).**
 - **Faire attention au valeur mise dans les registres (#define), toujours mettre un valeur ne pas les laisser vides.**
+- **Ne jamais touché a DCDC1 (bit 0 du registre 0x80) c'est lui qui alimente l'ESP32 donc il va y avoir des problèmes si on y touche.**
+- **Toujours vérifier que le lecture des parties critiques est chérente avant de réécrire le registre.**
 
 ## Notes matérielles (T-Watch Ultra)
 

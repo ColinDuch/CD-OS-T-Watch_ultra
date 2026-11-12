@@ -51,6 +51,11 @@ esp_err_t alimentation_init(void)
     // 4 on allume seulement ce dont l'os a besoin 
     ESP_RETURN_ON_ERROR(axp2101_activer_sortie(AXP2101_ALDO2, true), TAG, "allumage écran");
 
+    // 5 on coupe les convertisseurs DCDC inutilisés, donc DCDC1 n'est jamais touché 
+    for (axp2101_dcdc_t d = AXP2101_DCDC2; d <= AXP2101_DCDC5; d++) {
+        ESP_RETURN_ON_ERROR(axp2101_activer_dcdc(d, false), TAG, "coupure DCDC%d", d + 1);
+    }
+
     ESP_LOGI(TAG, "Alimentation dans un état connu");
     return ESP_OK;
 }
