@@ -7,6 +7,8 @@
 #include "xl9555.h"
 #include "axp2101.h"
 #include "alimentation.h"
+#include "ecran.h"
+#include "co5300.h"
 
 static const char *TAG = "main";
 
@@ -49,11 +51,22 @@ void app_main(void)
 
     bus_i2c_scanner();
 
+    // écran 
+    ESP_ERROR_CHECK(ecran_init());
+    ESP_ERROR_CHECK(co5300_luminosite(100));     // de 0 à 255
+
+    static const uint16_t COULEURS[] = {0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000};
+    static const char *NOMS[] = {"rouge", "vert", "bleu", "blanc", "noir"};
+    const int nb_couleurs = sizeof(COULEURS) / sizeof(COULEURS[0]);
+
     int battement = 0;
     while (1) {
+        int c = battement % nb_couleurs;   // reste de la division : 0, 1, 2, 3, 4, 0, 1...
+        ESP_ERROR_CHECK(co5300_remplir(COULEURS[c]));
+
         int batterie = 0;
         axp2101_tension_batterie(&batterie);
-        ESP_LOGI(TAG, "Battements %d | batterie : %d mV", battement++, batterie);
+        ESP_LOGI(TAG, "Battement %d | %s | batterie : %d mV", battement++, NOMS[c], batterie);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

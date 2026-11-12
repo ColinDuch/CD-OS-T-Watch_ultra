@@ -75,11 +75,11 @@ Chaque pilote est un composant ESP-IDF : son dossier `include/` contient la part
 - [x] **Étape 1 : projet ESP-IDF.** Flash 16 Mo, PSRAM 8 Mo détectée, journal.
 - [x] **Étape 2 : bus I2C.** Initialisation et scan des adresses (6 puces).
 - [x] **Étape 3 : pilote XL9555.** Expandeur de GPIO (alimentation de l’écran, reset du tactile).
-- [ ] **Étape 4 : pilote AXP2101 (minimal).**
+- [x] **Étape 4 : pilote AXP2101 (minimal).**
   - [x] Partie 1 : identifiant, état des sorties, tensions, batterie.
   - [x] Réorganisation : pilotes en composants ESP-IDF.
-  - [ ] Partie 2 : régler la tension et allumer ou éteindre une sortie.
-- [ ] **Étape 4 bis : remise à zéro.** Remise à zéro électrique des périphériques au démarrage (coupure puis rallumage des sorties de l’AXP2101), sorties DCDC2 à DCDC5 coupées.
+  - [x] Partie 2 : régler la tension et allumer ou éteindre une sortie.
+- [x] **Étape 4 bis : remise à zéro.** Remise à zéro électrique des périphériques au démarrage (coupure puis rallumage des sorties de l’AXP2101), sorties DCDC2 à DCDC5 coupées.
 - [ ] **Étape 5 : pilote d’écran CO5300.** QSPI, séquence d’initialisation, premiers pixels.
 - [ ] **Étape 6 : LVGL.** Reprise de l’interface de CD-OS, tampons en PSRAM.
 - [ ] **Étape 7 : pilote tactile CST9217.** Entrée de type pointeur pour LVGL.

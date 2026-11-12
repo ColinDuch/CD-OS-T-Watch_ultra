@@ -1,1 +1,1 @@
-idf_component_register(SRCS "main.c" "alimentation.c" INCLUDE_DIRS ".")
+idf_component_register(SRCS "main.c" "alimentation.c" "ecran.c" INCLUDE_DIRS ".")
