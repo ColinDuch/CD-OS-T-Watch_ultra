@@ -52,6 +52,7 @@ CD-OS-T-Watch_ultra/
 - [x] **Étape 2 : bus I2C.** Initialisation et scan des adresses (6 puces attendues).
 - [x] **Étape 3 : pilote XL9555.** Expandeur de GPIO (alimentation de l’écran, reset du tactile).
 - [ ] **Étape 4 : pilote AXP2101 (minimal).** Allumer ALDO2 (écran), lire la batterie.
+- [ ] **Étape 4 bis : Remise à zéro.** Remise à zéro électronique des périphériques au démarrage (coupure/rallumage des sorties de l'AXP2101).
 - [ ] **Étape 5 : pilote d’écran CO5300.** QSPI, séquence d’initialisation, premiers pixels.
 - [ ] **Étape 6 : LVGL.** Reprise de l’interface de CD-OS, tampons en PSRAM.
 - [ ] **Étape 7 : pilote tactile CST9217.** Entrée de type pointeur pour LVGL.
