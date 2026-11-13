@@ -3,35 +3,32 @@
 #include "bus_i2c.h"
 #include "co5300.h"
 #include "couleurs.h"
-#include "esp_timer.h"
 #include "driver/gpio.h"
 #include "ecran.h"
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par capacités
 #include "esp_log.h"
 #include "esp_psram.h" // fonctions liées à la PSRAM
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "xl9555.h"
 
 static const char *TAG = "main";
 
-#define BROCHE_BOUTON 0          // bouton GPIO 0 : 1 au repos, 0 quand on appuie
-#define TOURS_AVANT_EXTINCTION 100   // 100 tours de 50 ms = 5 secondes
+#define BROCHE_BOUTON 0            // bouton GPIO 0 : 1 au repos, 0 quand on appuie
+#define TOURS_AVANT_EXTINCTION 100 // 100 tours de 50 ms = 5 secondes
 
 static void bouton_init(void)
 {
     gpio_config_t cfg = {
         .pin_bit_mask = 1ULL << BROCHE_BOUTON,
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,   // au repos, la broche est tirée vers 1
+        .pull_up_en = GPIO_PULLUP_ENABLE, // au repos, la broche est tirée vers 1
     };
     ESP_ERROR_CHECK(gpio_config(&cfg));
 }
 
-static bool bouton_appuye(void)
-{
-    return gpio_get_level(BROCHE_BOUTON) == 0;
-}
+static bool bouton_appuye(void) { return gpio_get_level(BROCHE_BOUTON) == 0; }
 
 void app_main(void)
 {
@@ -76,7 +73,7 @@ void app_main(void)
     ESP_ERROR_CHECK(ecran_init());
     ESP_ERROR_CHECK(co5300_luminosite(100)); // de 0 à 255
 
-    // test A : chronométrer le remplissage de l'écran 
+    // test A : chronométrer le remplissage de l'écran
     int64_t debut = esp_timer_get_time();
     ESP_ERROR_CHECK(co5300_remplir(COULEUR_NOIR));
     int64_t duree = esp_timer_get_time() - debut;
@@ -91,12 +88,12 @@ void app_main(void)
         return;
     }
 
-    for (int y = 0; y < H; y++){
+    for (int y = 0; y < H; y++) {
         int b = y * 31 / (H - 1);
-        for (int x = 0; x < L; x++){
+        for (int x = 0; x < L; x++) {
             int r = x * 31 / (L - 1);
             uint16_t couleur = (r << 11) | b;
-            image[y * L +x] = couleur;
+            image[y * L + x] = couleur;
         }
     }
 
@@ -108,7 +105,7 @@ void app_main(void)
     // veille automatique de l'écran (voir l'algorithme)
     bouton_init();
     int compteur = 0;
-    bool ecran_allume = true;   // l'écran est allumé au démarrage
+    bool ecran_allume = true; // l'écran est allumé au démarrage
     int tour = 0;
 
     while (1) {
@@ -132,7 +129,8 @@ void app_main(void)
         if (tour % 20 == 0) {
             int batterie = 0;
             axp2101_tension_batterie(&batterie);
-            ESP_LOGI(TAG, "Batterie : %d mV | écran %s", batterie, ecran_allume ? "allumé" : "éteint");
+            ESP_LOGI(TAG, "Batterie : %d mV | écran %s", batterie,
+                     ecran_allume ? "allumé" : "éteint");
         }
         tour++;
 
