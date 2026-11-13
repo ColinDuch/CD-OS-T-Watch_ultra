@@ -1,14 +1,14 @@
+#include "alimentation.h"
+#include "axp2101.h"
+#include "bus_i2c.h"
+#include "co5300.h"
+#include "ecran.h"
+#include "esp_heap_caps.h" // gestionnaire de mémoire, par capacités
+#include "esp_log.h"
+#include "esp_psram.h" // fonctions liées à la PSRAM
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_log.h"
-#include "esp_psram.h"      // fonctions liées à la PSRAM
-#include "esp_heap_caps.h"  // gestionnaire de mémoire, par capacités
-#include "bus_i2c.h"
 #include "xl9555.h"
-#include "axp2101.h"
-#include "alimentation.h"
-#include "ecran.h"
-#include "co5300.h"
 
 static const char *TAG = "main";
 
@@ -51,22 +51,33 @@ void app_main(void)
 
     bus_i2c_scanner();
 
-    // écran 
+    // écran
     ESP_ERROR_CHECK(ecran_init());
-    ESP_ERROR_CHECK(co5300_luminosite(100));     // de 0 à 255
+    ESP_ERROR_CHECK(co5300_luminosite(100)); // de 0 à 255
 
-    static const uint16_t COULEURS[] = {0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000};
-    static const char *NOMS[] = {"rouge", "vert", "bleu", "blanc", "noir"};
-    const int nb_couleurs = sizeof(COULEURS) / sizeof(COULEURS[0]);
+    // test des bandes concentriques de 5 pixels (algorithme du peintre)
+    static const uint16_t BANDES[] = {
+        0xFFFF,   // 0 : blanc
+        0xF800,   // 1 : rouge
+        0x07E0,   // 2 : vert
+        0x001F,   // 3 : bleu
+        0xFFE0,   // 4 : jaune
+        0xF81F,   // 5 : magenta
+        0x07FF,   // 6 : cyan
+        0x0000,   // 7 : noir, pour le centre
+    };
+    const int nb_bandes = sizeof(BANDES) / sizeof(BANDES[0]);
+    const int e = 5;    // épaisseur des bandes en pixels
+
+    for (int k = 0; k < nb_bandes; k++) {
+        ESP_ERROR_CHECK(co5300_rectangle(k * e,k * e, 410 - 2* k * e, 502 -2 * k * e,BANDES[k]));
+    }
 
     int battement = 0;
     while (1) {
-        int c = battement % nb_couleurs;   // reste de la division : 0, 1, 2, 3, 4, 0, 1...
-        ESP_ERROR_CHECK(co5300_remplir(COULEURS[c]));
-
         int batterie = 0;
         axp2101_tension_batterie(&batterie);
-        ESP_LOGI(TAG, "Battement %d | %s | batterie : %d mV", battement++, NOMS[c], batterie);
+        ESP_LOGI(TAG, "Battement %d | batterie : %d mV", battement++, batterie);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

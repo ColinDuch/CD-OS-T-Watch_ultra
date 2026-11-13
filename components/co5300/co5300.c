@@ -1,47 +1,47 @@
 #include "co5300.h"
-#include <string.h>
-#include "driver/spi_master.h"
 #include "driver/gpio.h"
+#include "driver/spi_master.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <string.h>
 
-#define HOTE_SPI SPI2_HOST            // SPI1 est utilisé par la flash
-#define OPCODE_COMMANDE 0x02          // trame de commande, sur 1 fil
-#define OPCODE_PIXELS 0x32            // trame de pixels, données sur 4 fils
+#define HOTE_SPI SPI2_HOST   // SPI1 est utilisé par la flash
+#define OPCODE_COMMANDE 0x02 // trame de commande, sur 1 fil
+#define OPCODE_PIXELS 0x32   // trame de pixels, données sur 4 fils
 #define CMD_COLONNES 0x2A
 #define CMD_LIGNES 0x2B
 #define CMD_ECRIRE_MEMOIRE 0x2C
 #define CMD_LUMINOSITE 0x51
-#define PIXELS_PAR_MORCEAU 4096       // 8 Ko envoyés à chaque transaction
-#define ATTENDRE 0x80                 // bit 7 de "longueur" : attendre 120 ms après la commande
+#define PIXELS_PAR_MORCEAU 4096 // 8 Ko envoyés à chaque transaction
+#define ATTENDRE 0x80           // bit 7 de "longueur" : attendre 120 ms après la commande
 
 static const char *TAG = "co5300";
 static spi_device_handle_t s_ecran;
 static co5300_config_t s_cfg;
-static uint16_t *s_tampon;      // morceau de pixels, en RAM interne accessible au DMA
+static uint16_t *s_tampon; // morceau de pixels, en RAM interne accessible au DMA
 
 // séquence d'initialisation de la dalle de 2.06 pouces (LilyGoWatchUltra.cpp)
 typedef struct {
     uint8_t cmd;
     uint8_t donnees[4];
-    uint8_t longueur;   // bits 0 à 4 : nombre d'octets ; bit 7 : ATTENDRE
+    uint8_t longueur; // bits 0 à 4 : nombre d'octets ; bit 7 : ATTENDRE
 } commande_init_t;
 
 static const commande_init_t SEQUENCE[] = {
     {0xFE, {0x00}, 1},
     {0xC4, {0x80}, 1},
-    {0x3A, {0x55}, 1},                     // 16 bits par pixel (RGB565)
-    {0x35, {0x00}, 1},                     // signal TE actif
-    {0x53, {0x20}, 1},                     // commande de luminosité active
+    {0x3A, {0x55}, 1}, // 16 bits par pixel (RGB565)
+    {0x35, {0x00}, 1}, // signal TE actif
+    {0x53, {0x20}, 1}, // commande de luminosité active
     {0x63, {0xFF}, 1},
-    {0x2A, {0x00, 0x16, 0x01, 0xAF}, 4},   // colonnes 22 à 431
-    {0x2B, {0x00, 0x00, 0x01, 0xF5}, 4},   // lignes 0 à 501
-    {0x11, {0}, ATTENDRE},                 // sortie de veille
-    {0x29, {0}, ATTENDRE},                 // affichage allumé
-    {0x51, {0x00}, 1},                     // luminosité à 0
+    {0x2A, {0x00, 0x16, 0x01, 0xAF}, 4}, // colonnes 22 à 431
+    {0x2B, {0x00, 0x00, 0x01, 0xF5}, 4}, // lignes 0 à 501
+    {0x11, {0}, ATTENDRE},               // sortie de veille
+    {0x29, {0}, ATTENDRE},               // affichage allumé
+    {0x51, {0x00}, 1},                   // luminosité à 0
 };
 #define NB_COMMANDES (sizeof(SEQUENCE) / sizeof(SEQUENCE[0]))
 
@@ -52,7 +52,7 @@ esp_err_t co5300_commande(uint8_t cmd, const uint8_t *donnees, int longueur)
     memset(&t, 0, sizeof(t));
     t.cmd = OPCODE_COMMANDE;
     t.addr = (uint32_t)cmd << 8;
-    t.length = longueur * 8;    // en bits
+    t.length = longueur * 8; // en bits
     t.tx_buffer = longueur > 0 ? donnees : NULL;
 
     gpio_set_level(s_cfg.cs, 0);
@@ -93,7 +93,7 @@ esp_err_t co5300_init(const co5300_config_t *cfg)
         .data1_io_num = cfg->d1,
         .data2_io_num = cfg->d2,
         .data3_io_num = cfg->d3,
-        .data4_io_num = -1,       // -1 = pas de broche (0 serait le GPIO 0 !)
+        .data4_io_num = -1, // -1 = pas de broche (0 serait le GPIO 0 !)
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
@@ -104,17 +104,19 @@ esp_err_t co5300_init(const co5300_config_t *cfg)
 
     // le périphérique : la vitesse et le format des trames
     spi_device_interface_config_t peripherique = {
-        .command_bits = 8,                         // le code d'opération
-        .address_bits = 24,                        // l'adresse 0x00 CMD 0x00
+        .command_bits = 8,  // le code d'opération
+        .address_bits = 24, // l'adresse 0x00 CMD 0x00
         .mode = 0,
         .clock_speed_hz = cfg->frequence_mhz * 1000 * 1000,
-        .spics_io_num = -1,                        // CS gérée à la main
+        .spics_io_num = -1, // CS gérée à la main
         .queue_size = 1,
-        .flags = SPI_DEVICE_HALFDUPLEX,            // obligatoire pour les 4 fils
+        .flags = SPI_DEVICE_HALFDUPLEX, // obligatoire pour les 4 fils
     };
-    ESP_RETURN_ON_ERROR(spi_bus_add_device(HOTE_SPI, &peripherique, &s_ecran), TAG, "périphérique SPI");
+    ESP_RETURN_ON_ERROR(spi_bus_add_device(HOTE_SPI, &peripherique, &s_ecran), TAG,
+                        "périphérique SPI");
 
-    s_tampon = heap_caps_malloc(PIXELS_PAR_MORCEAU * sizeof(uint16_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    s_tampon = heap_caps_malloc(PIXELS_PAR_MORCEAU * sizeof(uint16_t),
+                                MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (s_tampon == NULL) {
         return ESP_ERR_NO_MEM;
     }
@@ -123,59 +125,82 @@ esp_err_t co5300_init(const co5300_config_t *cfg)
     for (int passe = 0; passe < 2; passe++) {
         for (int i = 0; i < NB_COMMANDES; i++) {
             const commande_init_t *c = &SEQUENCE[i];
-            ESP_RETURN_ON_ERROR(co5300_commande(c->cmd, c->donnees, c->longueur & 0x1F),
-                                TAG, "commande 0x%02X", c->cmd);
+            ESP_RETURN_ON_ERROR(co5300_commande(c->cmd, c->donnees, c->longueur & 0x1F), TAG,
+                                "commande 0x%02X", c->cmd);
             if (c->longueur & ATTENDRE) {
                 vTaskDelay(pdMS_TO_TICKS(120));
             }
         }
     }
 
-    ESP_LOGI(TAG, "Écran initialisé (%dx%d, %d MHz)", cfg->largeur, cfg->hauteur, cfg->frequence_mhz);
+    ESP_LOGI(TAG, "Écran initialisé (%dx%d, %d MHz)", cfg->largeur, cfg->hauteur,
+             cfg->frequence_mhz);
     return ESP_OK;
 }
 
-esp_err_t co5300_luminosite(uint8_t niveau)
-{
-    return co5300_commande(CMD_LUMINOSITE, &niveau, 1);
-}
+esp_err_t co5300_luminosite(uint8_t niveau) { return co5300_commande(CMD_LUMINOSITE, &niveau, 1); }
 
-esp_err_t co5300_remplir(uint16_t couleur)
+esp_err_t co5300_rectangle(int x, int y, int largeur, int hauteur, uint16_t couleur)
 {
-    ESP_RETURN_ON_ERROR(fenetre(0, 0, s_cfg.largeur, s_cfg.hauteur), TAG, "fenêtre");
+    // 1 découper et rogner le rectangle pour qu'il rentre dans l'écran
+    if (x < 0) {
+        largeur += x;
+        x = 0;
+    }
+    if (y < 0) {
+        hauteur += y;
+        y = 0;
+    }
+    if ((x + largeur) > s_cfg.largeur) {
+        largeur = s_cfg.largeur - x;
+    }
+    if ((y + hauteur) > s_cfg.hauteur) {
+        hauteur = s_cfg.hauteur - y;
+    }
+    if (largeur <= 0 || hauteur <= 0) {
+        return ESP_OK;
+    }
 
-    // l'écran attend l'octet de poids fort en premier : on inverse les deux octets
+    // 2 la fenêtre, la zone où l'écran range les pixels
+    ESP_RETURN_ON_ERROR(fenetre(x, y, largeur, hauteur), TAG, "fenêtre");
+
+    // 3 un morceau de pixels de la couleur que l'on veut (octets inversés)
     uint16_t inverse = (uint16_t)((couleur >> 8) | (couleur << 8));
     for (int i = 0; i < PIXELS_PAR_MORCEAU; i++) {
         s_tampon[i] = inverse;
     }
 
-    int restant = s_cfg.largeur * s_cfg.hauteur;
+    // 4 on envoie exactement la largeur x hauteur en pixels, CS reste à 0
+    int restant = largeur * hauteur;
     bool premier = true;
     esp_err_t err = ESP_OK;
 
-    gpio_set_level(s_cfg.cs, 0);                  // début de l'image
+    gpio_set_level(s_cfg.cs, 0);
     while (restant > 0 && err == ESP_OK) {
         int n = restant < PIXELS_PAR_MORCEAU ? restant : PIXELS_PAR_MORCEAU;
 
         spi_transaction_ext_t t;
         memset(&t, 0, sizeof(t));
         t.base.tx_buffer = s_tampon;
-        t.base.length = n * 16;                   // 16 bits par pixel
+        t.base.length = n * 16;
         if (premier) {
-            // trame : [0x32] [0x00 0x2C 0x00] [pixels sur 4 fils]
             t.base.flags = SPI_TRANS_MODE_QIO;
             t.base.cmd = OPCODE_PIXELS;
             t.base.addr = CMD_ECRIRE_MEMOIRE << 8;
             premier = false;
         } else {
-            // morceaux suivants : seulement des pixels, sans code ni adresse
-            t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_CMD |
-                           SPI_TRANS_VARIABLE_ADDR | SPI_TRANS_VARIABLE_DUMMY;
+            t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR |
+                           SPI_TRANS_VARIABLE_DUMMY;
         }
         err = spi_device_polling_transmit(s_ecran, &t.base);
         restant -= n;
     }
-    gpio_set_level(s_cfg.cs, 1);                  // fin de l'image, même en cas d'erreur
+    gpio_set_level(s_cfg.cs, 1);
     return err;
+}
+
+esp_err_t co5300_remplir(uint16_t couleur)
+{
+    // remplir l'écran aka dessiner un rectangle a la taille de l'écran
+    return co5300_rectangle(0, 0, s_cfg.largeur, s_cfg.hauteur, couleur);
 }

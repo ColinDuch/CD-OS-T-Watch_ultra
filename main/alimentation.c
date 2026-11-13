@@ -1,24 +1,24 @@
 #include "alimentation.h"
 #include "axp2101.h"
-#include "xl9555.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "xl9555.h"
 
-static const char *TAG ="alimentation";
+static const char *TAG = "alimentation";
 
 // tensions de la T-Watch ultra (LilyGoWatchUltra.cpp, vérifiées)
 static const struct {
     axp2101_sortie_t sortie;
     int mv;
 } TENSIONS[] = {
-    {AXP2101_ALDO1, 3300},  // carte SD
-    {AXP2101_ALDO2, 3300},  // écran
-    {AXP2101_ALDO3, 3300},  // LoRa
-    {AXP2101_ALDO4, 1800},  // capteur : jamais plus !
-    {AXP2101_BLDO1, 3300},  // GPS
-    {AXP2101_BLDO2, 3300},  // haut-parleur
+    {AXP2101_ALDO1, 3300}, // carte SD
+    {AXP2101_ALDO2, 3300}, // écran
+    {AXP2101_ALDO3, 3300}, // LoRa
+    {AXP2101_ALDO4, 1800}, // capteur : jamais plus !
+    {AXP2101_BLDO1, 3300}, // GPS
+    {AXP2101_BLDO2, 3300}, // haut-parleur
 };
 #define NB_TENSIONS (sizeof(TENSIONS) / sizeof(TENSIONS[0]))
 
@@ -45,13 +45,14 @@ esp_err_t alimentation_init(void)
 
     // 3 on règle toutes les tensions
     for (int i = 0; i < NB_TENSIONS; i++) {
-        ESP_RETURN_ON_ERROR(axp2101_regler_tension(TENSIONS[i].sortie, TENSIONS[i].mv), TAG, "tension sortie %d", TENSIONS[i].sortie);
+        ESP_RETURN_ON_ERROR(axp2101_regler_tension(TENSIONS[i].sortie, TENSIONS[i].mv), TAG,
+                            "tension sortie %d", TENSIONS[i].sortie);
     }
 
-    // 4 on allume seulement ce dont l'os a besoin 
+    // 4 on allume seulement ce dont l'os a besoin
     ESP_RETURN_ON_ERROR(axp2101_activer_sortie(AXP2101_ALDO2, true), TAG, "allumage écran");
 
-    // 5 on coupe les convertisseurs DCDC inutilisés, donc DCDC1 n'est jamais touché 
+    // 5 on coupe les convertisseurs DCDC inutilisés, donc DCDC1 n'est jamais touché
     for (axp2101_dcdc_t d = AXP2101_DCDC2; d <= AXP2101_DCDC5; d++) {
         ESP_RETURN_ON_ERROR(axp2101_activer_dcdc(d, false), TAG, "coupure DCDC%d", d + 1);
     }

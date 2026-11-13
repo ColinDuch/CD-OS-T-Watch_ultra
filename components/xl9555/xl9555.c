@@ -3,13 +3,13 @@
 #include "esp_log.h"
 
 #define XL9555_ADRESSE 0x20
-#define REG_ENTREE 0x00     // + port : état réel des broches
-#define REG_SORTIE 0x02     // + port : niveau imposé aux broches en sortie
-#define REG_CONFIG 0x06     // + port : 1 = entrée, 0 = sortie
-#define DELAI_MS 100        // attente maximale d'une transaction I2C
+#define REG_ENTREE 0x00 // + port : état réel des broches
+#define REG_SORTIE 0x02 // + port : niveau imposé aux broches en sortie
+#define REG_CONFIG 0x06 // + port : 1 = entrée, 0 = sortie
+#define DELAI_MS 100    // attente maximale d'une transaction I2C
 
 static const char *TAG = "xl9555";
-static i2c_master_dev_handle_t s_puce;  // "la puce à l'adresse 0x20, sur ce bus"
+static i2c_master_dev_handle_t s_puce; // "la puce à l'adresse 0x20, sur ce bus"
 
 // lit un registre : on envoie son munéro, puis on reçoit un octet
 static esp_err_t lire_registre(uint8_t reg, uint8_t *valeur)
@@ -30,7 +30,7 @@ esp_err_t xl9555_init(i2c_master_bus_handle_t bus)
     i2c_device_config_t cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = XL9555_ADRESSE,
-        .scl_speed_hz = 400000,     // 400 kHz : le mode "rapide" de l'I2C
+        .scl_speed_hz = 400000, // 400 kHz : le mode "rapide" de l'I2C
     };
     ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(bus, &cfg, &s_puce), TAG, "ajout sur le bus");
 
@@ -52,9 +52,9 @@ esp_err_t xl9555_mode(int broche, bool sortie)
     uint8_t valeur;
     ESP_RETURN_ON_ERROR(lire_registre(reg, &valeur), TAG, "lecture config");
     if (sortie) {
-        valeur &= ~(1 << bit);  // bit à 0 : sortie
+        valeur &= ~(1 << bit); // bit à 0 : sortie
     } else {
-        valeur |= (1 << bit);   // bit à 1 : entrée 
+        valeur |= (1 << bit); // bit à 1 : entrée
     }
     return ecrire_registre(reg, valeur);
 }
