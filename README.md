@@ -91,10 +91,10 @@ Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’�
   - [x] Réorganisation : pilotes en composants ESP-IDF.
   - [x] Partie 2 : régler la tension (avec relecture) et allumer ou éteindre une sortie.
 - [x] **Étape 4 bis : remise à zéro.** Coupure de toutes les sorties LDO, réglage des tensions, allumage de l’écran seul ; DCDC2 à DCDC5 coupées, DCDC1 protégée.
-- [ ] **Étape 5 : pilote d’écran CO5300.**
+- [x] **Étape 5 : pilote d’écran CO5300.**
   - [x] Partie 1 : bus QSPI, commandes, séquence d’initialisation, luminosité, remplissage (premiers pixels).
   - [x] Partie 2 : rectangles avec découpage, test des bandes concentriques (décalage et zone visible).
-  - [ ] Partie 3 : 80 MHz, un seul passage de la séquence, envoi d’images depuis la PSRAM (DMA).
+  - [x] Partie 3 : 80 MHz, un seul passage de la séquence, envoi d’images depuis la PSRAM (DMA).
 - [ ] **Étape 6 : LVGL.** Reprise de l’interface de CD-OS, tampons en PSRAM, zone sûre.
 - [ ] **Étape 7 : pilote tactile CST9217.** Entrée de type pointeur pour LVGL.
 - [ ] Ensuite : RTC, vibreur, veille, bus d’événements (repris de CD-OS), puis GPS, son, carte SD, calibration de la jauge batterie.

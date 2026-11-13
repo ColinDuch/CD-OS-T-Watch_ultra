@@ -2,6 +2,8 @@
 #include "axp2101.h"
 #include "bus_i2c.h"
 #include "co5300.h"
+#include "couleurs.h"
+#include "esp_timer.h"
 #include "ecran.h"
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par capacités
 #include "esp_log.h"
@@ -55,23 +57,34 @@ void app_main(void)
     ESP_ERROR_CHECK(ecran_init());
     ESP_ERROR_CHECK(co5300_luminosite(100)); // de 0 à 255
 
-    // test des bandes concentriques de 5 pixels (algorithme du peintre)
-    static const uint16_t BANDES[] = {
-        0xFFFF,   // 0 : blanc
-        0xF800,   // 1 : rouge
-        0x07E0,   // 2 : vert
-        0x001F,   // 3 : bleu
-        0xFFE0,   // 4 : jaune
-        0xF81F,   // 5 : magenta
-        0x07FF,   // 6 : cyan
-        0x0000,   // 7 : noir, pour le centre
-    };
-    const int nb_bandes = sizeof(BANDES) / sizeof(BANDES[0]);
-    const int e = 5;    // épaisseur des bandes en pixels
+    // test A : chronométrer le remplissage de l'écran 
+    int64_t debut = esp_timer_get_time();
+    ESP_ERROR_CHECK(co5300_remplir(COULEUR_NOIR));
+    int64_t duree = esp_timer_get_time() - debut;
+    ESP_LOGI(TAG, "Remplissage : %lld µs", duree);
 
-    for (int k = 0; k < nb_bandes; k++) {
-        ESP_ERROR_CHECK(co5300_rectangle(k * e,k * e, 410 - 2* k * e, 502 -2 * k * e,BANDES[k]));
+    // test B : un dégradé calculé en PSRAM, puis envoyé à l'écran
+    const int L = 410;
+    const int H = 502;
+    uint16_t *image = heap_caps_malloc(L * H * sizeof(uint16_t), MALLOC_CAP_SPIRAM);
+    if (image == NULL) {
+        ESP_LOGE(TAG, "Pas assez de PSRAM pour l'image");
+        return;
     }
+
+    for (int y = 0; y < H; y++){
+        int b = y * 31 / (H - 1);
+        for (int x = 0; x < L; x++){
+            int r = x * 31 / (L - 1);
+            uint16_t couleur = (r << 11) | b;
+            image[y * L +x] = couleur;
+        }
+    }
+
+    debut = esp_timer_get_time();
+    ESP_ERROR_CHECK(co5300_dessiner(0, 0, L, H, image));
+    duree = esp_timer_get_time() - debut;
+    ESP_LOGI(TAG, "Image : %lld µs", duree);
 
     int battement = 0;
     while (1) {

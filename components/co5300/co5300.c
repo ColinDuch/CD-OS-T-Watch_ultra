@@ -17,13 +17,14 @@
 #define CMD_LUMINOSITE 0x51
 #define PIXELS_PAR_MORCEAU 4096 // 8 Ko envoyés à chaque transaction
 #define ATTENDRE 0x80           // bit 7 de "longueur" : attendre 120 ms après la commande
+#define NB_PASSAGES 1           // LilyGo envoie la séquence 2 fois (voir README)
 
 static const char *TAG = "co5300";
 static spi_device_handle_t s_ecran;
 static co5300_config_t s_cfg;
-static uint16_t *s_tampon; // morceau de pixels, en RAM interne accessible au DMA
+static uint16_t *s_tampon; // tampon de transit, en RAM interne accessible au DMA
 
-// séquence d'initialisation de la dalle de 2.06 pouces (LilyGoWatchUltra.cpp)
+// séquence d'initialisation de la dalle de 2,06 pouces (LilyGoWatchUltra.cpp)
 typedef struct {
     uint8_t cmd;
     uint8_t donnees[4];
@@ -47,7 +48,7 @@ static const commande_init_t SEQUENCE[] = {
 
 esp_err_t co5300_commande(uint8_t cmd, const uint8_t *donnees, int longueur)
 {
-    // trame : [0x02] [0x00 cmd 0x00] [données], tout sur un fil
+    // trame : [0x02] [0x00 cmd 0x00] [données], tout sur 1 fil
     spi_transaction_t t;
     memset(&t, 0, sizeof(t));
     t.cmd = OPCODE_COMMANDE;
@@ -72,6 +73,26 @@ static esp_err_t fenetre(int x, int y, int largeur, int hauteur)
     uint8_t lignes[4] = {y0 >> 8, y0 & 0xFF, y1 >> 8, y1 & 0xFF};
     ESP_RETURN_ON_ERROR(co5300_commande(CMD_COLONNES, colonnes, 4), TAG, "colonnes");
     return co5300_commande(CMD_LIGNES, lignes, 4);
+}
+
+// envoie les n premiers pixels du tampon de transit ; CS doit déjà être à 0
+static esp_err_t envoyer_tampon(int n, bool premier)
+{
+    spi_transaction_ext_t t;
+    memset(&t, 0, sizeof(t));
+    t.base.tx_buffer = s_tampon;
+    t.base.length = n * 16; // 16 bits par pixel
+    if (premier) {
+        // trame : [0x32] [0x00 0x2C 0x00] [pixels sur 4 fils]
+        t.base.flags = SPI_TRANS_MODE_QIO;
+        t.base.cmd = OPCODE_PIXELS;
+        t.base.addr = CMD_ECRIRE_MEMOIRE << 8;
+    } else {
+        // morceaux suivants : seulement des pixels, sans code ni adresse
+        t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR |
+                       SPI_TRANS_VARIABLE_DUMMY;
+    }
+    return spi_device_polling_transmit(s_ecran, &t.base);
 }
 
 esp_err_t co5300_init(const co5300_config_t *cfg)
@@ -121,8 +142,8 @@ esp_err_t co5300_init(const co5300_config_t *cfg)
         return ESP_ERR_NO_MEM;
     }
 
-    // séquence d'initialisation, envoyée deux fois comme LilyGo
-    for (int passe = 0; passe < 2; passe++) {
+    // séquence d'initialisation
+    for (int passe = 0; passe < NB_PASSAGES; passe++) {
         for (int i = 0; i < NB_COMMANDES; i++) {
             const commande_init_t *c = &SEQUENCE[i];
             ESP_RETURN_ON_ERROR(co5300_commande(c->cmd, c->donnees, c->longueur & 0x1F), TAG,
@@ -133,8 +154,8 @@ esp_err_t co5300_init(const co5300_config_t *cfg)
         }
     }
 
-    ESP_LOGI(TAG, "Écran initialisé (%dx%d, %d MHz)", cfg->largeur, cfg->hauteur,
-             cfg->frequence_mhz);
+    ESP_LOGI(TAG, "Écran initialisé (%dx%d, %d MHz, %d passage(s))", cfg->largeur, cfg->hauteur,
+             cfg->frequence_mhz, NB_PASSAGES);
     return ESP_OK;
 }
 
@@ -142,7 +163,7 @@ esp_err_t co5300_luminosite(uint8_t niveau) { return co5300_commande(CMD_LUMINOS
 
 esp_err_t co5300_rectangle(int x, int y, int largeur, int hauteur, uint16_t couleur)
 {
-    // 1 découper et rogner le rectangle pour qu'il rentre dans l'écran
+    // 1. découpage : rogner le rectangle pour qu'il reste dans l'écran
     if (x < 0) {
         largeur += x;
         x = 0;
@@ -151,49 +172,66 @@ esp_err_t co5300_rectangle(int x, int y, int largeur, int hauteur, uint16_t coul
         hauteur += y;
         y = 0;
     }
-    if ((x + largeur) > s_cfg.largeur) {
+    if (x + largeur > s_cfg.largeur) {
         largeur = s_cfg.largeur - x;
     }
-    if ((y + hauteur) > s_cfg.hauteur) {
+    if (y + hauteur > s_cfg.hauteur) {
         hauteur = s_cfg.hauteur - y;
     }
     if (largeur <= 0 || hauteur <= 0) {
-        return ESP_OK;
+        return ESP_OK; // rien de visible à dessiner
     }
 
-    // 2 la fenêtre, la zone où l'écran range les pixels
+    // 2. la fenêtre
     ESP_RETURN_ON_ERROR(fenetre(x, y, largeur, hauteur), TAG, "fenêtre");
 
-    // 3 un morceau de pixels de la couleur que l'on veut (octets inversés)
+    // 3. un tampon rempli de la couleur, octets inversés, une seule fois
     uint16_t inverse = (uint16_t)((couleur >> 8) | (couleur << 8));
     for (int i = 0; i < PIXELS_PAR_MORCEAU; i++) {
         s_tampon[i] = inverse;
     }
 
-    // 4 on envoie exactement la largeur x hauteur en pixels, CS reste à 0
-    int restant = largeur * hauteur;
-    bool premier = true;
+    // 4. envoyer largeur × hauteur pixels, CS maintenue à 0
+    int total = largeur * hauteur;
+    int envoyes = 0;
     esp_err_t err = ESP_OK;
 
     gpio_set_level(s_cfg.cs, 0);
-    while (restant > 0 && err == ESP_OK) {
-        int n = restant < PIXELS_PAR_MORCEAU ? restant : PIXELS_PAR_MORCEAU;
+    while (envoyes < total && err == ESP_OK) {
+        int n = total - envoyes < PIXELS_PAR_MORCEAU ? total - envoyes : PIXELS_PAR_MORCEAU;
+        err = envoyer_tampon(n, envoyes == 0);
+        envoyes += n;
+    }
+    gpio_set_level(s_cfg.cs, 1);
+    return err;
+}
 
-        spi_transaction_ext_t t;
-        memset(&t, 0, sizeof(t));
-        t.base.tx_buffer = s_tampon;
-        t.base.length = n * 16;
-        if (premier) {
-            t.base.flags = SPI_TRANS_MODE_QIO;
-            t.base.cmd = OPCODE_PIXELS;
-            t.base.addr = CMD_ECRIRE_MEMOIRE << 8;
-            premier = false;
-        } else {
-            t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_CMD | SPI_TRANS_VARIABLE_ADDR |
-                           SPI_TRANS_VARIABLE_DUMMY;
+esp_err_t co5300_dessiner(int x, int y, int largeur, int hauteur, const uint16_t *pixels)
+{
+    // pas de découpage pour une image : on refuse ce qui dépasse de l'écran
+    if (x < 0 || y < 0 || largeur <= 0 || hauteur <= 0 || x + largeur > s_cfg.largeur ||
+        y + hauteur > s_cfg.hauteur) {
+        ESP_LOGE(TAG, "Image hors de l'écran : (%d, %d), %dx%d", x, y, largeur, hauteur);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_RETURN_ON_ERROR(fenetre(x, y, largeur, hauteur), TAG, "fenêtre");
+
+    int total = largeur * hauteur;
+    int envoyes = 0;
+    esp_err_t err = ESP_OK;
+
+    gpio_set_level(s_cfg.cs, 0);
+    while (envoyes < total && err == ESP_OK) {
+        int n = total - envoyes < PIXELS_PAR_MORCEAU ? total - envoyes : PIXELS_PAR_MORCEAU;
+
+        // recopie du morceau suivant dans le tampon de transit, octets inversés au passage
+        for (int i = 0; i < n; i++) {
+            uint16_t p = pixels[envoyes + i];
+            s_tampon[i] = (uint16_t)((p >> 8) | (p << 8));
         }
-        err = spi_device_polling_transmit(s_ecran, &t.base);
-        restant -= n;
+        err = envoyer_tampon(n, envoyes == 0);
+        envoyes += n;
     }
     gpio_set_level(s_cfg.cs, 1);
     return err;
@@ -201,6 +239,6 @@ esp_err_t co5300_rectangle(int x, int y, int largeur, int hauteur, uint16_t coul
 
 esp_err_t co5300_remplir(uint16_t couleur)
 {
-    // remplir l'écran aka dessiner un rectangle a la taille de l'écran
+    // remplir l'écran, c'est dessiner un rectangle aussi grand que lui
     return co5300_rectangle(0, 0, s_cfg.largeur, s_cfg.hauteur, couleur);
 }

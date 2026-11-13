@@ -20,7 +20,7 @@ esp_err_t ecran_init(void)
         .d1 = 39,
         .d2 = 42,
         .d3 = 45,
-        .frequence_mhz = 40, // LilyGo utilise 80 : on y passera une fois l'écran validé
+        .frequence_mhz = 80, // comme LilyGo 
         .largeur = 410,
         .hauteur = 502,
         .decalage_x = 22,
