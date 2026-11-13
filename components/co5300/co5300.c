@@ -15,6 +15,10 @@
 #define CMD_LIGNES 0x2B
 #define CMD_ECRIRE_MEMOIRE 0x2C
 #define CMD_LUMINOSITE 0x51
+#define CMD_VEILLE 0x10         // le contrôleur s'endort (l'image reste en mémoire)
+#define CMD_SORTIE_VEILLE 0x11  // le contrôleur se réveille (attendre 120ms ensuite)
+#define CMD_AFFICHAGE_OFF 0x28  // l'affichage est coupé 
+#define CMD_AFFICHAGE_ON 0x29   // l'affichage est rétabli
 #define PIXELS_PAR_MORCEAU 4096 // 8 Ko envoyés à chaque transaction
 #define ATTENDRE 0x80           // bit 7 de "longueur" : attendre 120 ms après la commande
 #define NB_PASSAGES 1           // LilyGo envoie la séquence 2 fois (voir README)
@@ -241,4 +245,20 @@ esp_err_t co5300_remplir(uint16_t couleur)
 {
     // remplir l'écran, c'est dessiner un rectangle aussi grand que lui
     return co5300_rectangle(0, 0, s_cfg.largeur, s_cfg.hauteur, couleur);
+}
+
+esp_err_t co5300_veille(void)
+{
+    ESP_RETURN_ON_ERROR(co5300_commande(CMD_AFFICHAGE_OFF, NULL, 0), TAG, "affichage coupé");
+    ESP_RETURN_ON_ERROR(co5300_commande(CMD_VEILLE, NULL, 0), TAG, "veille");
+    // la norme interdit de redemander le réveil moins de 120 ms après la mise en veille 
+    vTaskDelay(pdMS_TO_TICKS(120));
+    return ESP_OK;
+}
+
+esp_err_t co5300_reveil(void)
+{
+    ESP_RETURN_ON_ERROR(co5300_commande(CMD_SORTIE_VEILLE, NULL, 0), TAG, "sortie de veille");
+    vTaskDelay(pdMS_TO_TICKS(120)); // le temps que les circuits redémarrent 
+    return co5300_commande(CMD_AFFICHAGE_ON, NULL, 0);
 }

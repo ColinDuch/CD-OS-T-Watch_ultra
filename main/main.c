@@ -4,6 +4,7 @@
 #include "co5300.h"
 #include "couleurs.h"
 #include "esp_timer.h"
+#include "driver/gpio.h"
 #include "ecran.h"
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par capacités
 #include "esp_log.h"
@@ -13,6 +14,24 @@
 #include "xl9555.h"
 
 static const char *TAG = "main";
+
+#define BROCHE_BOUTON 0          // bouton GPIO 0 : 1 au repos, 0 quand on appuie
+#define TOURS_AVANT_EXTINCTION 100   // 100 tours de 50 ms = 5 secondes
+
+static void bouton_init(void)
+{
+    gpio_config_t cfg = {
+        .pin_bit_mask = 1ULL << BROCHE_BOUTON,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,   // au repos, la broche est tirée vers 1
+    };
+    ESP_ERROR_CHECK(gpio_config(&cfg));
+}
+
+static bool bouton_appuye(void)
+{
+    return gpio_get_level(BROCHE_BOUTON) == 0;
+}
 
 void app_main(void)
 {
@@ -86,11 +105,37 @@ void app_main(void)
     duree = esp_timer_get_time() - debut;
     ESP_LOGI(TAG, "Image : %lld µs", duree);
 
-    int battement = 0;
+    // veille automatique de l'écran (voir l'algorithme)
+    bouton_init();
+    int compteur = 0;
+    bool ecran_allume = true;   // l'écran est allumé au démarrage
+    int tour = 0;
+
     while (1) {
-        int batterie = 0;
-        axp2101_tension_batterie(&batterie);
-        ESP_LOGI(TAG, "Battement %d | batterie : %d mV", battement++, batterie);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (bouton_appuye()) {
+            compteur = 0;
+            if (!ecran_allume) {
+                ESP_ERROR_CHECK(co5300_reveil());
+                ecran_allume = true;
+                ESP_LOGI(TAG, "écran rallumé");
+            }
+        }
+
+        if (compteur >= TOURS_AVANT_EXTINCTION && ecran_allume) {
+            ESP_ERROR_CHECK(co5300_veille());
+            ecran_allume = false;
+            ESP_LOGI(TAG, "écran éteint");
+        }
+        compteur++;
+
+        // batterie : une fois par seconde, soit un tour sur 20
+        if (tour % 20 == 0) {
+            int batterie = 0;
+            axp2101_tension_batterie(&batterie);
+            ESP_LOGI(TAG, "Batterie : %d mV | écran %s", batterie, ecran_allume ? "allumé" : "éteint");
+        }
+        tour++;
+
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
