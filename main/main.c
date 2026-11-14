@@ -16,7 +16,7 @@
 static const char *TAG = "main";
 
 #define BROCHE_BOUTON 0            // bouton GPIO 0 : 1 au repos, 0 quand on appuie
-#define TOURS_AVANT_EXTINCTION 100 // 100 tours de 50 ms = 5 secondes
+#define TOURS_AVANT_EXTINCTION 200 // 100 tours de 50 ms = 5 secondes
 
 static void bouton_init(void)
 {
@@ -101,6 +101,14 @@ void app_main(void)
     ESP_ERROR_CHECK(co5300_dessiner(0, 0, L, H, image));
     duree = esp_timer_get_time() - debut;
     ESP_LOGI(TAG, "Image : %lld µs", duree);
+
+    vTaskDelay(pdMS_TO_TICKS(2000));   // 2 secondes pour voir le dégradé
+
+    // test : la colonne de départ des zones
+    ESP_ERROR_CHECK(co5300_remplir(COULEUR_NOIR));
+    ESP_ERROR_CHECK(co5300_rectangle(0, 100, 100, 100, COULEUR_ROUGE));    // début en x = 0
+    ESP_ERROR_CHECK(co5300_rectangle(150, 100, 100, 100, COULEUR_VERT));   // début pair
+    ESP_ERROR_CHECK(co5300_rectangle(151, 250, 100, 100, COULEUR_BLEU));   // début impair
 
     // veille automatique de l'écran (voir l'algorithme)
     bouton_init();
