@@ -297,6 +297,34 @@ esp_err_t co5300_dessiner(int x, int y, int largeur, int hauteur, const uint16_t
     return err;
 }
 
+esp_err_t co5300_envoyer(int x, int y, int largeur, int hauteur, uint16_t *pixels)
+{
+    if (x < 0 || y < 0 || largeur <= 0 || hauteur <= 0 || x + largeur > s_cfg.largeur ||
+        y + hauteur > s_cfg.hauteur) {
+        ESP_LOGE(TAG, "Zone hors de l'écran : (%d, %d), %dx%d", x, y, largeur, hauteur);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    ESP_RETURN_ON_ERROR(fenetre(x, y, largeur, hauteur), TAG, "fenêtre");
+
+    int total = largeur * hauteur;
+    int envoyes = 0;
+    esp_err_t err = ESP_OK;
+
+    gpio_set_level(s_cfg.cs, 0);
+    while (envoyes < total && err == ESP_OK) {
+        int n = total - envoyes < PIXELS_PAR_MORCEAU ? total - envoyes : PIXELS_PAR_MORCEAU;
+
+        spi_transaction_ext_t t;
+        preparer(&t, pixels + envoyes, n, envoyes == 0);
+        err = spi_device_polling_transmit(s_ecran, &t.base);
+
+        envoyes += n;
+    }
+    gpio_set_level(s_cfg.cs, 1);
+    return err;
+}
+
 esp_err_t co5300_remplir(uint16_t couleur)
 {
     // remplir l'écran, c'est dessiner un rectangle aussi grand que lui

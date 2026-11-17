@@ -16,5 +16,6 @@ esp_err_t co5300_luminosite(uint8_t niveau);
 esp_err_t co5300_remplir(uint16_t couleur);
 esp_err_t co5300_rectangle(int x, int y, int largeur, int hauteur, uint16_t couleur);
 esp_err_t co5300_dessiner(int x, int y, int largeur, int hauteur, const uint16_t *pixels);
+esp_err_t co5300_envoyer(int x, int y, int largeur, int hauteur, uint16_t *pixels);
 esp_err_t co5300_veille(void);
 esp_err_t co5300_reveil(void);
