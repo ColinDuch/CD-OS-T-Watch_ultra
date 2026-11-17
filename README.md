@@ -1,23 +1,26 @@
 # CD-OS-T-Watch_ultra
 
-Un système d’exploitation fait maison pour la montre LilyGo T-Watch Ultra (ESP32-S3), écrit en C avec ESP-IDF et FreeRTOS.
+Un système d’exploitation fait maison pour la montre LilyGo T-Watch Ultra (ESP32-S3), écrit en C avec ESP-IDF, FreeRTOS et LVGL.
 
-Comme CD-OS sur le Cardputer, le projet est construit étape par étape, dans un but d’apprentissage : chaque brique est écrite et comprise avant de passer à la suivante. Tous les pilotes des puces de la montre sont écrits à la main ; le code de LilyGo sert uniquement de référence de lecture.
+Comme CD-OS sur le Cardputer, le projet est construit étape par étape, dans un but d’apprentissage : chaque brique est écrite et comprise avant de passer à la suivante, en commençant par l’algorithme, puis le code. Tous les pilotes des puces de la montre sont écrits à la main ; le code de LilyGo sert uniquement de référence de lecture.
 
 ## Fonctionnalités actuelles
 
-- **Mémoire :** flash de 16 Mo et PSRAM de 8 Mo correctement configurées, affichage de la mémoire libre (PSRAM et RAM interne).
+- **Mémoire :** flash de 16 Mo (programme de 4 Mo) et PSRAM de 8 Mo correctement configurées.
 - **Bus I2C** (SDA 3, SCL 2) : initialisation et scan des adresses.
-- **Pilote XL9555** (expandeur de GPIO) : configuration des broches en entrée ou en sortie, lecture et écriture d’une broche.
-- **Pilote AXP2101** (gestion de l’alimentation) : vérification de l’identifiant, état et tension des sorties LDO (réglage avec relecture), allumage et coupure des sorties LDO et DCDC (DCDC1 protégée), tension de la batterie.
-- **État d’alimentation imposé au démarrage :** coupure de toutes les sorties, réglage des tensions, puis allumage de l’écran seul, quel que soit l’état laissé par le programme précédent.
-- **Pilote d’écran CO5300** (QSPI) : séquence d’initialisation, luminosité, rectangles pleins avec découpage, remplissage de l’écran.
-- Un battement par seconde dans le moniteur, avec la tension de la batterie.
+- **Pilote XL9555** (expandeur de GPIO) : configuration, lecture et écriture des broches.
+- **Pilote AXP2101** (gestion de l’alimentation) : identifiant, sorties LDO et DCDC (tension réglée avec relecture, DCDC1 protégée), tension de la batterie.
+- **État d’alimentation imposé au démarrage :** coupure de toutes les sorties, réglage des tensions, puis allumage de l’écran seul.
+- **Pilote d’écran CO5300** (QSPI à 80 MHz) : initialisation, luminosité, rectangles avec découpage, images depuis la PSRAM (double tampon), envoi direct sans recopie, veille et réveil.
+- **Veille automatique de l’écran** au bout de 5 s, réveil par le bouton GPIO 0.
+- **LVGL 9.2** branché sur le pilote : vidage sans recopie, arrondisseur de zones, tâche dédiée protégée par un verrou.
+- Un battement par seconde dans le moniteur, avec la tension de la batterie et l’état de l’écran.
 
 ## Prérequis
 
 - ESP-IDF v5.4, installé dans `~/esp/esp-idf`
 - Sous Arch : être dans le groupe `uucp` pour accéder à `/dev/ttyACM0`
+- LVGL est téléchargé automatiquement par le gestionnaire de composants (`main/idf_component.yml`) dans `managed_components/` (ignoré par Git) ; la version exacte est enregistrée dans `dependencies.lock` (à commiter).
 
 Charger l’environnement ESP-IDF dans chaque nouveau terminal :
 
@@ -37,7 +40,14 @@ idf.py fullclean                       # effacer build/ (garde sdkconfig), aprè
 
 Quitter le moniteur : `Ctrl + T` puis `Ctrl + X` (`Ctrl + ]` ne fonctionne pas avec un clavier AZERTY).
 
-Si le flash échoue : maintenir le bouton GPIO0 enfoncé, appuyer sur RESET, relâcher GPIO0, puis relancer le flash. Appuyer ensuite sur RESET pour démarrer le programme.
+**Régénérer la configuration :** `sdkconfig.defaults` contient tous les réglages du projet. Il n’est lu que pour les options absentes de `sdkconfig` ; pour qu’il soit pris en compte en entier :
+
+```
+rm sdkconfig
+idf.py set-target esp32s3
+```
+
+**Si le flash échoue** (par exemple `OSError: [Errno 71] Protocol error`) : fermer tout moniteur ouvert, débrancher et rebrancher l’USB. Sinon, mode téléchargement manuel : maintenir le bouton GPIO 0 (en bas à gauche), appuyer sur RESET (à droite), relâcher GPIO 0, relancer le flash, puis appuyer sur RESET pour démarrer le programme.
 
 Sans `set-target`, ESP-IDF compile pour l’ESP32 classique et le flash échoue (`--chip esp32` dans le message d’erreur).
 
@@ -46,14 +56,18 @@ Sans `set-target`, ESP-IDF compile pour l’ESP32 classique et le flash échoue 
 ```
 CD-OS-T-Watch_ultra/
 ├── CMakeLists.txt              # projet ESP-IDF
-├── sdkconfig.defaults          # réglages de la montre (flash, PSRAM)
+├── sdkconfig.defaults          # tous les réglages du projet (flash, PSRAM, performances, partitions, LVGL)
 ├── sdkconfig                   # configuration complète (générée, à conserver)
+├── partitions.csv              # table de partitions (programme de 4 Mo)
+├── dependencies.lock           # version exacte des composants téléchargés (LVGL)
 ├── .clang-format               # style du code (le même que CD-OS)
 ├── main/
 │   ├── CMakeLists.txt          # sources du composant principal
-│   ├── main.c                  # app_main : assemble les pilotes, tests
+│   ├── idf_component.yml       # dépendance : lvgl/lvgl ~9.2.0
+│   ├── main.c                  # app_main : démarrage, boucle de veille de l'écran
 │   ├── alimentation.h / .c     # état d'alimentation imposé au démarrage (propre à la montre)
-│   └── ecran.h / .c            # activation de la dalle et broches de l'écran (propre à la montre)
+│   ├── ecran.h / .c            # activation de la dalle et broches de l'écran (propre à la montre)
+│   └── interface.h / .c        # LVGL : tampons, vidage, arrondisseur, tâche, verrou
 └── components/
     ├── bus_i2c/
     │   ├── CMakeLists.txt      # REQUIRES esp_driver_i2c
@@ -73,13 +87,14 @@ CD-OS-T-Watch_ultra/
     └── co5300/
         ├── CMakeLists.txt      # PRIV_REQUIRES esp_driver_spi esp_driver_gpio
         ├── include/
-        │   └── co5300.h        # init, commande, luminosité, rectangle, remplissage
+        │   ├── co5300.h        # init, commande, luminosité, rectangle, image, envoi, veille
+        │   └── couleurs.h      # couleurs nommées et macro RGB565(r, g, b)
         └── co5300.c
 ```
 
 Chaque pilote est un composant ESP-IDF générique : son dossier `include/` contient la partie publique, son `.c` la partie privée (registres, fonctions `static`). `REQUIRES` déclare une dépendance dont les types apparaissent dans le `.h` ; `PRIV_REQUIRES` une dépendance utilisée seulement dans le `.c`.
 
-Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’écran, ordre de démarrage) reste dans `main/`.
+Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’écran, ordre de démarrage, interface) reste dans `main/`.
 
 ## Feuille de route
 
@@ -94,13 +109,22 @@ Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’�
 - [x] **Étape 5 : pilote d’écran CO5300.**
   - [x] Partie 1 : bus QSPI, commandes, séquence d’initialisation, luminosité, remplissage (premiers pixels).
   - [x] Partie 2 : rectangles avec découpage, test des bandes concentriques (décalage et zone visible).
-  - [x] Partie 3 : 80 MHz, un seul passage de la séquence, envoi d’images depuis la PSRAM (DMA).
-- [ ] **Étape 6 : LVGL.** Reprise de l’interface de CD-OS, tampons en PSRAM, zone sûre.
+  - [x] Partie 3 : 80 MHz, un seul passage de la séquence, images depuis la PSRAM.
+  - [x] Veille automatique de l’écran (5 s) et réveil par le bouton GPIO 0.
+  - [x] Optimisations : `-O2`, processeur à 240 MHz, double tampon (image plein écran : 41 → 18 ms).
+- [ ] **Étape 6 : LVGL.**
+  - [x] Table de partitions personnalisée (programme de 4 Mo).
+  - [x] LVGL 9.2 installé et configuré (polices, thème sombre, mémoire, DPI).
+  - [x] Partie 2 : LVGL branché sur le pilote (vidage sans recopie, arrondisseur, tâche, verrou).
+  - [ ] Partie 3 : premier écran (zone sûre, heure, batterie mise à jour en toute sécurité).
+  - [ ] Envoi asynchrone (LVGL dessine pendant que le DMA envoie).
 - [ ] **Étape 7 : pilote tactile CST9217.** Entrée de type pointeur pour LVGL.
-- [ ] Ensuite : RTC, vibreur, veille, bus d’événements (repris de CD-OS), puis GPS, son, carte SD, calibration de la jauge batterie.
+- [ ] Ensuite : RTC, vibreur, veille de l’ESP32, bus d’événements (repris de CD-OS), puis GPS, son, carte SD, calibration de la jauge batterie, partition de fichiers (images, icônes).
 - [ ] Plus tard : capteur BHI260AP, NFC, LoRa (pilotes C officiels des fabricants + couche d’adaptation).
 
 ## Règles retenues
+
+**Matériel**
 
 - **Une puce externe n’est jamais dans un état connu au démarrage.** Flasher ou appuyer sur RESET ne redémarre que l’ESP32 : le XL9555, l’AXP2101 et l’écran gardent l’état laissé par le programme précédent. Chaque pilote doit imposer l’état qu’il attend.
 - **On vérifie avant de supposer.** Les numéros de broches, les registres et les tensions sont confirmés par un test ou dans le code de référence avant d’être utilisés.
@@ -109,22 +133,42 @@ Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’�
 - **Distinguer registre d’allumage et registres de tension :** un seul registre d’allumage (un bit par sortie), un registre de tension par sortie.
 - **Ne jamais toucher à DCDC1** (bit 0 du registre `0x80`) : elle alimente l’ESP32.
 - **Avant de réécrire un registre critique, vérifier que la lecture est cohérente** (le bit de DCDC1 doit valoir 1).
-- **Ne jamais mettre de commentaire à la place d’une valeur dans un `#define`** : un `#define` sans valeur compile sans erreur et vaut « rien ».
 - **Modifier un registre :** lire, changer uniquement les bits voulus, réécrire.
 - **Broche de l’expandeur en sortie :** écrire le niveau d’abord, passer en sortie ensuite.
 - **Dans ESP-IDF, `-1` signifie « pas de broche »** : `0` désigne le GPIO 0 (le bouton de la montre).
+
+**Langage C**
+
+- **Ne jamais mettre de commentaire à la place d’une valeur dans un `#define`** : un `#define` sans valeur compile sans erreur et vaut « rien ».
 - **Traduire une condition :** « et » = `&&`, « ou » = `||` ; relire la condition dans les deux langues.
+- **Une branche « alors rien » :** inverser la condition et supprimer la branche (`si non état : ...`).
+- **Préférer `>=` à `==`** pour un seuil : la condition reste vraie même si le compteur saute une valeur.
 - **Parcourir un tableau :** `for (int i = 0; i < taille; i++)`, et deux noms différents pour deux boucles imbriquées.
+- **Pas de nombres magiques :** une constante nommée (`TOURS_AVANT_EXTINCTION`, `L - 1`) plutôt qu’une valeur écrite en dur.
+- **Quand un bloc de code apparaît deux fois, en faire une fonction.**
+- **Division entière :** multiplier d’abord, diviser ensuite (`x * 31 / 409`, jamais `x / 409 * 31`).
+- **Marqueurs de format :** `%u` / `%lu` selon le type, `%zu` pour un `size_t`, `%lld` pour un `int64_t` (sans oublier le `d`).
+- **Pixel (x, y) dans une image en mémoire :** case `y × largeur + x`.
+- **`x & ~1` met le dernier bit à 0 (pair), `x | 1` le met à 1 (impair).**
+
+**Système**
+
+- **Une ressource partagée entre deux tâches (l’écran) se protège par un verrou.**
+- **Un tampon de travail (brouillon) peut être modifié ; un original (`const`) jamais.**
+- **Lancer un envoi en arrière-plan :** ne jamais réécrire un tampon tant que son envoi n’est pas terminé, et attendre le dernier envoi avant de relever CS.
+- **Prévoir, puis mesurer.** Le gain d’une optimisation est limité par la partie qu’elle n’accélère pas (loi d’Amdahl), et c’est le plus lent qui impose son rythme (goulot d’étranglement).
+- **`sdkconfig.defaults` doit contenir tous les réglages** : le projet est alors reproductible.
 
 ## Notes matérielles (T-Watch Ultra)
 
-Sources : `docs/hardware/lilygo-t-watch-ultra.md`, `src/LilyGoWatchUltra.cpp` et `src/display/LilyGoDispInterface.cpp` du dépôt LilyGoLib, la définition `twatch_ultra` du `boards.txt` du cœur Arduino ESP32, et `src/REG/AXP2101Constants.h` de XPowersLib.
+Sources : `docs/hardware/lilygo-t-watch-ultra.md`, `src/LilyGoWatchUltra.cpp`, `src/display/LilyGoDispInterface.cpp` et `src/display/LV_Helper_v9.cpp` du dépôt LilyGoLib, la définition `twatch_ultra` du `boards.txt` du cœur Arduino ESP32, et `src/REG/AXP2101Constants.h` de XPowersLib.
 
-### Mémoire et USB
+### Mémoire, partitions et USB
 
 - **Flash :** externe, 16 Mo, QSPI, lue en mode DIO (Winbond).
 - **PSRAM :** externe, 8 Mo, QSPI. Ni la flash ni la PSRAM ne sont intégrées à la puce. Avec la PSRAM en mode octal (OPI), la montre se bloque à l’initialisation de la mémoire (`tlsf_create`).
-- **RAM interne :** environ 368 Ko libres au démarrage (le pilote SPI d’ESP-IDF en occupe une partie).
+- **RAM interne :** environ 371 Ko libres au démarrage (avec `-O2`), environ 85 à 90 Ko de moins après LVGL (dont 2 tampons de 41 Ko).
+- **Table de partitions** (`partitions.csv`) : `nvs` (réglages, 24 Ko), `phy_init` (étalonnage radio, 4 Ko), `factory` (programme, 4 Mo). Environ 12 Mo restent libres pour une future partition de fichiers ou pour les mises à jour sans fil (OTA).
 - **USB :** USB-Serial/JTAG intégré à l’ESP32-S3 (`303A:1001`), apparaît en `/dev/ttyACM0`.
 
 ### Brochage
@@ -141,7 +185,7 @@ Sources : `docs/hardware/lilygo-t-watch-ultra.md`, `src/LilyGoWatchUltra.cpp` et
 | LoRa : CS / RESET / BUSY / IRQ | 36 / 47 / 48 / 14 |
 | GPS : TX / RX / PPS | 43 / 44 / 13 |
 | Ampli audio MAX98357A : BCLK / WCLK / DOUT | 9 / 10 / 11 |
-| Bouton utilisateur / mode téléchargement | 0 |
+| Bouton utilisateur / mode téléchargement | 0 (en bas à gauche ; 1 au repos, 0 appuyé) |
 
 ### Adresses I2C
 
@@ -170,7 +214,7 @@ Registres : entrée `0x00`/`0x01`, sortie `0x02`/`0x03`, inversion `0x04`/`0x05`
 | GPIO10 | port 1, bit 0 | 8 | Reset du tactile |
 | GPIO12 | port 1, bit 2 | 10 | Détection de la carte SD (0 = carte présente) |
 
-État imposé au démarrage par CD-OS : écran, vibreur et reset du tactile en sortie à 0 ; détection SD en entrée.
+État imposé au démarrage par CD-OS : écran, vibreur et reset du tactile en sortie à 0 ; détection SD en entrée. L’écran est ensuite activé par `ecran_init`.
 
 ### Gestion d’alimentation AXP2101
 
@@ -199,7 +243,7 @@ LilyGo fournit aussi des données de calibration de la jauge batterie (`BATTER_P
 
 ### Écran
 
-AMOLED 2,06 pouces, 410 × 502, contrôleur CO5300 en QSPI, format RGB565 (16 bits par pixel, octet de poids fort envoyé en premier : inverser les deux octets sur l’ESP32). Une image complète pèse environ 400 Ko : elle ne tient qu’en PSRAM.
+AMOLED 2,06 pouces, 410 × 502 (environ 315 pixels par pouce), contrôleur CO5300 en QSPI, format RGB565 (16 bits par pixel : rouge sur 5 bits, vert sur 6, bleu sur 5 ; octet de poids fort envoyé en premier : inverser les deux octets sur l’ESP32). Une image complète pèse environ 400 Ko : elle ne tient qu’en PSRAM.
 
 **Mise sous tension :** ALDO2 allumée, puis broche 7 du XL9555 à 1, puis 200 ms d’attente avant la séquence. La broche GPIO 37 (reset selon la fiche) n’est pas utilisée par LilyGo (`disp_rst = -1`) : l’écran est remis à zéro en coupant son alimentation.
 
@@ -210,9 +254,9 @@ commande : [0x02] [0x00 CMD 0x00] [données]              tout sur 1 fil
 pixels   : [0x32] [0x00 0x2C 0x00] [pixels...]           pixels sur 4 fils
 ```
 
-La broche CS est pilotée à la main : elle reste à 0 pendant tout l’envoi d’une image, découpée en morceaux (seul le premier porte le code et l’adresse). Bus SPI2, semi-duplex.
+La broche CS est pilotée à la main : elle reste à 0 pendant tout l’envoi d’une image, découpée en morceaux de 4096 pixels (seul le premier porte le code et l’adresse). Bus SPI2, semi-duplex, 80 MHz.
 
-**Séquence d’initialisation** (`co5300_206_cmd`, envoyée deux fois par LilyGo) :
+**Séquence d’initialisation** (`co5300_206_cmd`, envoyée deux fois par LilyGo, une seule fois par CD-OS grâce à l’attente de 200 ms) :
 
 | Commande | Données | Sens |
 |---|---|---|
@@ -228,23 +272,54 @@ La broche CS est pilotée à la main : elle reste à 0 pendant tout l’envoi d�
 | `0x29` | — | Affichage allumé, puis 120 ms |
 | `0x51` | `0x00` | Luminosité à 0 (de 0 à 255) |
 
+**Veille et réveil :** veille = `0x28` (affichage coupé) puis `0x10` (contrôleur endormi), 120 ms d’attente ; réveil = `0x11`, 120 ms d’attente, puis `0x29`. L’image reste en mémoire pendant la veille.
+
 **Décalage :** rotation 0 = x + 22, y + 0 (confirmé dans `LilyGoDispInterface.cpp`, lignes 249-250). Rotation d’un quart de tour : x + 10, y + 22.
 
-**Vitesse :** LilyGo utilise 80 MHz ; CD-OS est à 40 MHz pour l’instant. À 40 MHz, la séquence prend 480 ms (deux passages) et remplir l’écran environ 20 ms.
+**Zones envoyées :** début sur une colonne et une ligne paires, fin sur une colonne et une ligne impaires (arrondisseur LVGL : `x1 &= ~1`, `y1 &= ~1`, `x2 |= 1`, `y2 |= 1`). Comme la dernière colonne (409) et la dernière ligne (501) sont impaires, une zone ne peut jamais dépasser de l’écran. LilyGo force en plus le début des zones à la colonne 0 pour la T-Watch Ultra (« sinon l’affichage est anormal ») : un test avec des carrés commençant en x = 0, 150 et 151 n’a montré aucun défaut, cette règle n’est donc pas appliquée. À essayer si des défauts apparaissent avec du texte ou des animations.
 
-**Zone visible :** coins arrondis à grand rayon (un rectangle placé dans un coin est en partie ou entièrement caché) ; bords masqués par la vitre : 5 à 9 pixels en haut et à gauche, 0 à 4 en bas et à droite (montage, identique avec le firmware LilyGo). L’interface devra garder une zone sûre.
+**Performances mesurées (image plein écran) :**
 
-Après un flash sans remise à zéro, l’écran garde la dernière image du programme précédent. Éviter de laisser une image fixe trop longtemps : risque de marquage (*burn-in*) sur un AMOLED.
+| Version | Remplissage | Image depuis la PSRAM |
+|---|---|---|
+| 40 MHz, deux passages de séquence | 20 ms | — |
+| 80 MHz, un seul tampon | 12,0 ms | 40,8 ms |
+| + `-O2` et processeur à 240 MHz | 11,2 ms | 27,8 ms |
+| + double tampon | 11,2 ms | 18,4 ms |
+
+Le remplissage est limité par le bus SPI ; l’image par la recopie depuis la PSRAM. La séquence d’initialisation prend 240 ms.
+
+**Zone visible :** coins arrondis à grand rayon ; bords masqués par la vitre : 5 à 9 pixels en haut et à gauche, 0 à 4 en bas et à droite (montage, identique avec le firmware LilyGo). L’interface devra garder une zone sûre.
+
+Après un flash sans remise à zéro, l’écran garde la dernière image du programme précédent. Éviter de laisser une image fixe trop longtemps : risque de marquage (*burn-in*) sur un AMOLED (d’où la veille automatique).
+
+### LVGL
+
+Version 9.2.2 (la même que CD-OS sur le Cardputer et que LilyGo). Réglages dans `sdkconfig.defaults` :
+
+| Réglage | Valeur | Raison |
+|---|---|---|
+| Profondeur de couleur | 16 bits | RGB565 |
+| Mémoire | `malloc` d’ESP-IDF (`LV_USE_CLIB_MALLOC`) | Les grosses allocations vont en PSRAM |
+| Polices | Montserrat 14, 20, 28, 48 | Écran très dense : 20 pour le texte, 28 pour les titres, 48 pour l’heure |
+| Police par défaut | Montserrat 20 | Lisible sans réglage |
+| Thème | Sombre | AMOLED : pixel noir = éteint |
+| DPI | 300 | Dimensions des éléments adaptées à l’écran |
+
+Deux tampons de dessin de 50 lignes (41 Ko chacun) en RAM interne lisible par le DMA ; rendu partiel. La fonction de vidage inverse les octets directement dans le tampon (`lv_draw_sw_rgb565_swap`), puis l’envoie avec `co5300_envoyer`, sans recopie. Toute utilisation de LVGL ou de l’écran depuis une autre tâche doit prendre le verrou (`interface_verrouiller` / `interface_deverrouiller`).
+
+**Icônes (à venir) :** dessinées en PNG sur fond noir, converties en RGB565 (avec transparence si besoin) par l’outil de conversion d’images de LVGL ; 80 à 96 pixels pour les applications, 20 à 24 pour la barre d’état (ou les symboles intégrés de LVGL). Un tableau `const` reste en flash.
 
 ### Batterie et coupure complète
 
 Batterie de 1100 mAh, 4200 mV une fois pleine. Garder un courant de charge inférieur à 500 mA pour éviter que l’AXP2101 ne chauffe.
 
-**Remise à zéro de toutes les puces :** débrancher l’USB, maintenir PWR pendant 6 secondes, attendre quelques secondes, rallumer avec un appui d’une seconde. Seuls le RTC (pile de sauvegarde) et la sauvegarde du GPS restent alimentés. Depuis l’étape 4 bis, CD-OS fait cette remise à zéro lui-même au démarrage pour les sorties LDO.
+**Remise à zéro de toutes les puces :** débrancher l’USB, maintenir PWR (en haut à gauche) pendant 6 secondes, attendre quelques secondes, rallumer avec un appui d’une seconde. Seuls le RTC (pile de sauvegarde) et la sauvegarde du GPS restent alimentés. Depuis l’étape 4 bis, CD-OS fait cette remise à zéro lui-même au démarrage pour les sorties LDO.
 
 ## Références
 
 - [Guide de programmation ESP-IDF (ESP32-S3)](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/index.html)
-- [LilyGoLib](https://github.com/Xinyuan-LilyGO/LilyGoLib) : fiche matérielle et code de référence (`src/LilyGoWatchUltra.cpp` pour l’alimentation et la séquence de l’écran, `src/display/LilyGoDispInterface.cpp` pour le protocole QSPI)
+- [Documentation de LVGL 9.2](https://docs.lvgl.io/9.2/)
+- [LilyGoLib](https://github.com/Xinyuan-LilyGO/LilyGoLib) : fiche matérielle et code de référence (`src/LilyGoWatchUltra.cpp` pour l’alimentation et la séquence de l’écran, `src/display/LilyGoDispInterface.cpp` pour le protocole QSPI, `src/display/LV_Helper_v9.cpp` pour l’adaptation à LVGL)
 - [XPowersLib](https://github.com/lewisxhe/XPowersLib) : registres de l’AXP2101 (`src/REG/AXP2101Constants.h`)
 - [Variante Arduino `lilygo_twatch_ultra`](https://github.com/espressif/arduino-esp32/tree/master/variants/lilygo_twatch_ultra) : brochage officiel
