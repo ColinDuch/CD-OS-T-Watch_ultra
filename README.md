@@ -116,7 +116,7 @@ Ce qui est propre à la montre et à l’OS (tensions choisies, broches de l’�
   - [x] Table de partitions personnalisée (programme de 4 Mo).
   - [x] LVGL 9.2 installé et configuré (polices, thème sombre, mémoire, DPI).
   - [x] Partie 2 : LVGL branché sur le pilote (vidage sans recopie, arrondisseur, tâche, verrou).
-  - [ ] Partie 3 : premier écran (zone sûre, heure, batterie mise à jour en toute sécurité).
+  - [x] Partie 3 : premier écran (zone sûre, heure, batterie mise à jour en toute sécurité).
   - [ ] Envoi asynchrone (LVGL dessine pendant que le DMA envoie).
 - [ ] **Étape 7 : pilote tactile CST9217.** Entrée de type pointeur pour LVGL.
 - [ ] Ensuite : RTC, vibreur, veille de l’ESP32, bus d’événements (repris de CD-OS), puis GPS, son, carte SD, calibration de la jauge batterie, partition de fichiers (images, icônes).

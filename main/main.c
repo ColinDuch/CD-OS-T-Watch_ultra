@@ -4,7 +4,7 @@
 #include "esp_psram.h"     // fonctions liées à la PSRAM
 #include "esp_heap_caps.h" // gestionnaire de mémoire, par "capacités"
 #include "driver/gpio.h"
-#include "lvgl.h"
+#include "accueil.h"
 #include "bus_i2c.h"
 #include "xl9555.h"
 #include "axp2101.h"
@@ -16,7 +16,7 @@
 static const char *TAG = "main";
 
 #define BROCHE_BOUTON 0              // bouton GPIO 0 : 1 au repos, 0 quand on appuie
-#define TOURS_AVANT_EXTINCTION 100   // 100 tours de 50 ms = 5 secondes
+#define TOURS_AVANT_EXTINCTION 200   // 100 tours de 50 ms = 5 secondes
 
 static void bouton_init(void)
 {
@@ -58,12 +58,9 @@ void app_main(void)
     ESP_LOGI(TAG, "RAM interne libre après LVGL : %zu octets",
              heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
-    // premier test de LVGL : un texte au centre de l'écran
+    // l'écran d'accueil
     interface_verrouiller();
-    lv_obj_t *texte = lv_label_create(lv_screen_active());
-    lv_label_set_text(texte, "CD-OS");
-    lv_obj_set_style_text_font(texte, &lv_font_montserrat_48, 0);
-    lv_obj_center(texte);
+    accueil_creer();
     interface_deverrouiller();
 
     // veille automatique de l'écran
