@@ -1,5 +1,6 @@
 #include "bus_i2c.h"
 #include "esp_log.h"
+#include <string.h>
 
 #define PIN_SDA 3
 #define PIN_SCL 2
@@ -35,4 +36,36 @@ void bus_i2c_scanner(void)
     }
 
     ESP_LOGI(TAG, "%d puce(s) trouvée(s)", trouves);
+}
+
+#define DELAI_MS 100  // attente maximale d'une trnasaction I2C
+#define MAX_OCTETS 16 // nb max d'octets écrits en une fois
+
+esp_err_t bus_i2c_ajouter(uint8_t adresse, i2c_master_dev_handle_t *puce)
+{
+    i2c_device_config_t cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_7,
+        .device_address = adresse,
+        .scl_speed_hz = 400000,
+    };
+    return i2c_master_bus_add_device(s_bus, &cfg, puce);
+}
+
+// lit n registres consécutifs, à partir de "reg", la puce avance d'elle-même à chauqe octet
+esp_err_t bus_i2c_lire(i2c_master_dev_handle_t puce, uint8_t reg, uint8_t *donnees, size_t n)
+{
+    return i2c_master_transmit_receive(puce, &reg, 1, donnees, n, DELAI_MS);
+}
+
+// écrit n registres consécutifs, la trame est [reg, donnée 1, donnée 2, ...]
+esp_err_t bus_i2c_ecrire(i2c_master_dev_handle_t puce, uint8_t reg, const uint8_t *donnees,
+                         size_t n)
+{
+    if (n > MAX_OCTETS) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t trame[MAX_OCTETS + 1];
+    trame[0] = reg;
+    memcpy(&trame[1], donnees, n); // recopie les n octets juste après le numéro du registre
+    return i2c_master_transmit(puce, trame, n + 1, DELAI_MS);
 }
